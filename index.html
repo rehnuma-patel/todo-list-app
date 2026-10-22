@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>To-Do List | Rehnumabanu Patel</title>
+  <title>TaskFlow To-Do List | Rehnumabanu Patel</title>
   <meta name="description" content="A to-do list app to add, edit, complete and delete tasks. Tasks are saved in your browser with localStorage." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -11,86 +11,121 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="bg-orbs" aria-hidden="true"><span></span><span></span></div>
+  <div class="layout">
 
-  <main class="app">
-    <div class="top-bar">
-      <a href="https://rehnuma-patel.github.io/internship-portfolio/#projects" class="back"><i class="fa-solid fa-arrow-left"></i> Back to Portfolio</a>
-      <button type="button" class="icon-btn" id="theme-toggle" aria-label="Toggle dark mode"><i class="fa-solid fa-moon"></i></button>
-    </div>
-
-    <header class="app-header">
-      <div class="logo"><i class="fa-solid fa-list-check"></i></div>
-      <div>
-        <h1>My Tasks</h1>
-        <p class="today" id="today"></p>
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="logo"><i class="fa-solid fa-list-check"></i></div>
+        <span>TaskFlow</span>
+        <button type="button" class="icon-btn close-sidebar" id="close-sidebar" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
       </div>
-    </header>
 
-    <!-- ===== PROGRESS ===== -->
-    <section class="progress-card" aria-label="Progress">
-      <div class="progress-text">
-        <span id="progress-label">No tasks yet</span>
-        <strong id="progress-percent">0%</strong>
+      <nav class="menu" aria-label="Task views">
+        <p class="menu-title">Tasks</p>
+        <button type="button" class="menu-item active" data-filter="all"><i class="fa-solid fa-inbox"></i> All tasks <span class="count" id="count-all">0</span></button>
+        <button type="button" class="menu-item" data-filter="active"><i class="fa-regular fa-circle"></i> Active <span class="count" id="count-active">0</span></button>
+        <button type="button" class="menu-item" data-filter="completed"><i class="fa-regular fa-circle-check"></i> Completed <span class="count" id="count-completed">0</span></button>
+
+        <p class="menu-title">Smart views</p>
+        <button type="button" class="menu-item" data-filter="today"><i class="fa-regular fa-sun"></i> Due today <span class="count" id="count-today">0</span></button>
+        <button type="button" class="menu-item" data-filter="overdue"><i class="fa-regular fa-clock"></i> Overdue <span class="count" id="count-overdue">0</span></button>
+        <button type="button" class="menu-item" data-filter="high"><i class="fa-solid fa-fire"></i> High priority <span class="count" id="count-high">0</span></button>
+      </nav>
+
+      <!-- Progress ring -->
+      <section class="progress-card" aria-label="Progress">
+        <div class="ring" id="ring">
+          <span id="progress-percent">0%</span>
+        </div>
+        <div>
+          <strong>Your progress</strong>
+          <p id="progress-label">No tasks yet</p>
+        </div>
+      </section>
+
+      <div class="sidebar-footer">
+        <button type="button" class="side-link" id="theme-toggle"><i class="fa-solid fa-moon"></i> <span>Dark mode</span></button>
+        <a href="https://rehnuma-patel.github.io/internship-portfolio/#projects" class="side-link"><i class="fa-solid fa-arrow-left"></i> Back to Portfolio</a>
       </div>
-      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-    </section>
+    </aside>
+    <div class="overlay" id="overlay"></div>
 
-    <!-- ===== ADD TASK ===== -->
-    <form class="add-form" id="add-form" novalidate>
-      <div class="add-row">
-        <label for="task-input" class="sr-only">New task</label>
-        <input type="text" id="task-input" placeholder="What do you need to do?" maxlength="120" autocomplete="off" />
-        <button type="submit" class="btn-add" aria-label="Add task"><i class="fa-solid fa-plus"></i><span>Add</span></button>
+    <!-- ===== MAIN ===== -->
+    <main class="main">
+      <header class="topbar">
+        <button type="button" class="icon-btn open-sidebar" id="open-sidebar" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+        <div>
+          <h1 id="greeting">Hello 👋</h1>
+          <p class="today" id="today"></p>
+        </div>
+      </header>
+
+      <!-- Add task -->
+      <form class="add-form" id="add-form" novalidate>
+        <div class="add-row">
+          <span class="add-icon"><i class="fa-solid fa-plus"></i></span>
+          <label for="task-input" class="sr-only">New task</label>
+          <input type="text" id="task-input" placeholder="Add a new task…" maxlength="120" autocomplete="off" />
+        </div>
+        <div class="add-options">
+          <label class="option">
+            <i class="fa-solid fa-flag"></i>
+            <span class="sr-only">Priority</span>
+            <select id="priority-input">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+          <label class="option">
+            <i class="fa-regular fa-calendar"></i>
+            <span class="sr-only">Due date</span>
+            <input type="date" id="due-input" />
+          </label>
+          <button type="submit" class="btn-add"><i class="fa-solid fa-plus"></i> Add task</button>
+        </div>
+        <small class="form-error" id="form-error" role="alert"></small>
+      </form>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <h2 id="view-title">All tasks</h2>
+        <div class="toolbar-controls">
+          <label class="search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <span class="sr-only">Search tasks</span>
+            <input type="search" id="search-input" placeholder="Search" />
+          </label>
+          <label class="option">
+            <i class="fa-solid fa-arrow-down-wide-short"></i>
+            <span class="sr-only">Sort by</span>
+            <select id="sort-input">
+              <option value="newest">Newest</option>
+              <option value="due">Due date</option>
+              <option value="priority">Priority</option>
+            </select>
+          </label>
+        </div>
       </div>
-      <div class="add-options">
-        <label class="option">
-          <i class="fa-solid fa-flag"></i>
-          <span class="sr-only">Priority</span>
-          <select id="priority-input">
-            <option value="low">Low priority</option>
-            <option value="medium" selected>Medium priority</option>
-            <option value="high">High priority</option>
-          </select>
-        </label>
-        <label class="option">
-          <i class="fa-regular fa-calendar"></i>
-          <span class="sr-only">Due date</span>
-          <input type="date" id="due-input" />
-        </label>
+
+      <!-- Task list -->
+      <ul class="task-list" id="task-list" aria-live="polite"></ul>
+
+      <div class="empty-state" id="empty-state" hidden>
+        <div class="empty-icon"><i class="fa-regular fa-face-smile-beam"></i></div>
+        <h3 id="empty-title">No tasks yet</h3>
+        <p id="empty-text">Add your first task above to get started.</p>
       </div>
-      <small class="form-error" id="form-error" role="alert"></small>
-    </form>
 
-    <!-- ===== TOOLBAR ===== -->
-    <div class="toolbar">
-      <div class="filters" role="tablist" aria-label="Filter tasks">
-        <button type="button" class="filter-btn active" data-filter="all">All <span class="count" id="count-all">0</span></button>
-        <button type="button" class="filter-btn" data-filter="active">Active <span class="count" id="count-active">0</span></button>
-        <button type="button" class="filter-btn" data-filter="completed">Done <span class="count" id="count-completed">0</span></button>
-      </div>
-      <label class="search">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <span class="sr-only">Search tasks</span>
-        <input type="search" id="search-input" placeholder="Search tasks" />
-      </label>
-    </div>
+      <footer class="list-footer">
+        <span id="items-left">0 tasks left</span>
+        <button type="button" class="link-btn" id="clear-completed"><i class="fa-solid fa-broom"></i> Clear completed</button>
+      </footer>
 
-    <!-- ===== TASK LIST ===== -->
-    <ul class="task-list" id="task-list" aria-live="polite"></ul>
-
-    <div class="empty-state" id="empty-state" hidden>
-      <i class="fa-regular fa-face-smile-beam"></i>
-      <p id="empty-text">No tasks yet. Add your first one above!</p>
-    </div>
-
-    <footer class="app-footer">
-      <span id="items-left">0 tasks left</span>
-      <button type="button" class="link-btn" id="clear-completed"><i class="fa-solid fa-broom"></i> Clear completed</button>
-    </footer>
-
-    <p class="hint"><i class="fa-solid fa-floppy-disk"></i> Tasks are saved in your browser (localStorage). Double-click a task to edit it.</p>
-  </main>
+      <p class="hint"><i class="fa-solid fa-floppy-disk"></i> Tasks are saved in your browser (localStorage). Double-click a task to edit it.</p>
+    </main>
+  </div>
 
   <!-- ===== UNDO TOAST ===== -->
   <div class="toast" id="toast" role="status">
@@ -109,7 +144,7 @@
         <p class="task-text"></p>
         <input type="text" class="task-edit" maxlength="120" hidden />
         <div class="task-meta">
-          <span class="chip priority"></span>
+          <span class="chip priority"><i class="fa-solid fa-flag"></i> <span class="priority-text"></span></span>
           <span class="chip due" hidden><i class="fa-regular fa-calendar"></i> <span class="due-text"></span></span>
         </div>
       </div>

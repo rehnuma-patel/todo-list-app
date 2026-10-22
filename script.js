@@ -5,28 +5,44 @@ const priorityInput = document.getElementById("priority-input");
 const dueInput = document.getElementById("due-input");
 const formError = document.getElementById("form-error");
 const searchInput = document.getElementById("search-input");
+const sortInput = document.getElementById("sort-input");
 const taskList = document.getElementById("task-list");
 const template = document.getElementById("task-template");
+const viewTitle = document.getElementById("view-title");
 const emptyState = document.getElementById("empty-state");
+const emptyTitle = document.getElementById("empty-title");
 const emptyText = document.getElementById("empty-text");
-const filterBtns = document.querySelectorAll(".filter-btn");
+const menuItems = document.querySelectorAll(".menu-item");
 const itemsLeft = document.getElementById("items-left");
 const clearCompletedBtn = document.getElementById("clear-completed");
 const progressLabel = document.getElementById("progress-label");
 const progressPercent = document.getElementById("progress-percent");
-const progressFill = document.getElementById("progress-fill");
+const ring = document.getElementById("ring");
 const themeToggle = document.getElementById("theme-toggle");
+const sidebar = document.getElementById("sidebar");
+const overlay = document.getElementById("overlay");
 const toast = document.getElementById("toast");
 const toastText = document.getElementById("toast-text");
 const undoBtn = document.getElementById("undo-btn");
 
 const STORAGE_KEY = "todo-tasks";
 const PRIORITIES = ["low", "medium", "high"];
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+
+// Title and empty-state text for each sidebar view
+const VIEWS = {
+  all: { title: "All tasks", empty: "No tasks here", hint: "Add your first task above to get started." },
+  active: { title: "Active", empty: "All done!", hint: "Nothing left to do. Enjoy your free time." },
+  completed: { title: "Completed", empty: "Nothing completed yet", hint: "Tick a task's circle to mark it as done." },
+  today: { title: "Due today", empty: "Nothing due today", hint: "Tasks with today's due date will show here." },
+  overdue: { title: "Overdue", empty: "No overdue tasks", hint: "Great job staying on top of things!" },
+  high: { title: "High priority", empty: "No high priority tasks", hint: "Set a task's priority to High to see it here." },
+};
 
 let tasks = loadTasks();
 let currentFilter = "all";
 let searchTerm = "";
-let lastDeleted = null; // { tasks: [...], toastTimer }
+let lastDeleted = null; // { snapshot, timer }
 
 // ===== LOCAL STORAGE =====
 // Each task is stored as: { id, text, completed, priority, dueDate, createdAt }
@@ -66,6 +82,14 @@ function todayString() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function isOverdue(t) {
+  return !t.completed && t.dueDate !== "" && t.dueDate < todayString();
+}
+
+function isDueToday(t) {
+  return !t.completed && t.dueDate === todayString();
+}
+
 function formatDue(dateStr) {
   const today = todayString();
   if (dateStr === today) return { text: "Today", status: "today" };
@@ -80,15 +104,33 @@ function formatDue(dateStr) {
   return { text: label, status: "" };
 }
 
+const FILTERS = {
+  all: () => true,
+  active: (t) => !t.completed,
+  completed: (t) => t.completed,
+  today: isDueToday,
+  overdue: isOverdue,
+  high: (t) => t.priority === "high" && !t.completed,
+};
+
+function sortTasks(list) {
+  const sorted = [...list];
+  if (sortInput.value === "due") {
+    // Tasks without a due date go last
+    sorted.sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
+  } else if (sortInput.value === "priority") {
+    sorted.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
+  } else {
+    sorted.sort((a, b) => b.createdAt - a.createdAt);
+  }
+  return sorted;
+}
+
 function getVisibleTasks() {
-  return tasks.filter((t) => {
-    const matchesFilter =
-      currentFilter === "all" ||
-      (currentFilter === "active" && !t.completed) ||
-      (currentFilter === "completed" && t.completed);
-    const matchesSearch = t.text.toLowerCase().includes(searchTerm);
-    return matchesFilter && matchesSearch;
-  });
+  const visible = tasks.filter(
+    (t) => FILTERS[currentFilter](t) && t.text.toLowerCase().includes(searchTerm)
+  );
+  return sortTasks(visible);
 }
 
 // ===== RENDER =====
@@ -102,7 +144,7 @@ function createTaskElement(task) {
   li.querySelector(".task-check").setAttribute("aria-label", `Mark "${task.text}" as done`);
   // textContent (not innerHTML) so user input can never inject HTML
   li.querySelector(".task-text").textContent = task.text;
-  li.querySelector(".priority").textContent = task.priority;
+  li.querySelector(".priority-text").textContent = task.priority;
 
   if (task.dueDate) {
     const due = formatDue(task.dueDate);
@@ -119,11 +161,19 @@ function render() {
   taskList.replaceChildren(...visible.map(createTaskElement));
 
   // Empty state message depends on why the list is empty
+  const view = VIEWS[currentFilter];
+  viewTitle.textContent = view.title;
   emptyState.hidden = visible.length > 0;
-  if (tasks.length === 0) emptyText.textContent = "No tasks yet. Add your first one above!";
-  else if (searchTerm) emptyText.textContent = "No tasks match your search.";
-  else if (currentFilter === "active") emptyText.textContent = "All done! Nothing left to do.";
-  else emptyText.textContent = "No completed tasks yet.";
+  if (tasks.length === 0) {
+    emptyTitle.textContent = "No tasks yet";
+    emptyText.textContent = "Add your first task above to get started.";
+  } else if (searchTerm) {
+    emptyTitle.textContent = "No results";
+    emptyText.textContent = "No tasks match your search.";
+  } else {
+    emptyTitle.textContent = view.empty;
+    emptyText.textContent = view.hint;
+  }
 
   updateStats();
 }
@@ -132,20 +182,24 @@ function updateStats() {
   const total = tasks.length;
   const done = tasks.filter((t) => t.completed).length;
   const active = total - done;
+  const overdue = tasks.filter(isOverdue).length;
   const percent = total ? Math.round((done / total) * 100) : 0;
 
   document.getElementById("count-all").textContent = total;
   document.getElementById("count-active").textContent = active;
   document.getElementById("count-completed").textContent = done;
+  document.getElementById("count-today").textContent = tasks.filter(isDueToday).length;
+  document.getElementById("count-high").textContent = tasks.filter(FILTERS.high).length;
+  const overdueCount = document.getElementById("count-overdue");
+  overdueCount.textContent = overdue;
+  overdueCount.classList.toggle("alert", overdue > 0);
 
   itemsLeft.textContent = `${active} ${active === 1 ? "task" : "tasks"} left`;
   clearCompletedBtn.disabled = done === 0;
 
-  progressLabel.textContent = total
-    ? `${done} of ${total} completed`
-    : "No tasks yet";
+  progressLabel.textContent = total ? `${done} of ${total} tasks completed` : "No tasks yet";
   progressPercent.textContent = `${percent}%`;
-  progressFill.style.width = `${percent}%`;
+  ring.style.setProperty("--p", percent);
 }
 
 // ===== ADD =====
@@ -170,8 +224,9 @@ form.addEventListener("submit", (e) => {
   });
   saveTasks();
 
-  // Show the new task even if the "Done" filter or a search was active
-  if (currentFilter === "completed") setFilter("all");
+  // Show the new task even if a view or search would hide it
+  const newTask = tasks[0];
+  if (!FILTERS[currentFilter](newTask)) setFilter("all");
   searchInput.value = "";
   searchTerm = "";
 
@@ -299,16 +354,17 @@ undoBtn.addEventListener("click", () => {
   render();
 });
 
-// ===== FILTER & SEARCH =====
+// ===== VIEWS, SEARCH & SORT =====
 function setFilter(filter) {
   currentFilter = filter;
-  filterBtns.forEach((b) => b.classList.toggle("active", b.dataset.filter === filter));
+  menuItems.forEach((b) => b.classList.toggle("active", b.dataset.filter === filter));
 }
 
-filterBtns.forEach((btn) => {
+menuItems.forEach((btn) => {
   btn.addEventListener("click", () => {
     setFilter(btn.dataset.filter);
     render();
+    closeSidebar();
   });
 });
 
@@ -317,10 +373,31 @@ searchInput.addEventListener("input", () => {
   render();
 });
 
+sortInput.addEventListener("change", render);
+
+// ===== MOBILE SIDEBAR =====
+function openSidebar() {
+  sidebar.classList.add("open");
+  overlay.classList.add("show");
+}
+
+function closeSidebar() {
+  sidebar.classList.remove("open");
+  overlay.classList.remove("show");
+}
+
+document.getElementById("open-sidebar").addEventListener("click", openSidebar);
+document.getElementById("close-sidebar").addEventListener("click", closeSidebar);
+overlay.addEventListener("click", closeSidebar);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeSidebar();
+});
+
 // ===== THEME =====
 function setTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
   themeToggle.querySelector("i").className = theme === "dark" ? "fa-solid fa-sun" : "fa-solid fa-moon";
+  themeToggle.querySelector("span").textContent = theme === "dark" ? "Light mode" : "Dark mode";
   try { localStorage.setItem("theme", theme); } catch (e) { /* storage blocked */ }
 }
 
@@ -343,9 +420,14 @@ window.addEventListener("storage", (e) => {
 });
 
 // ===== START =====
-document.getElementById("today").textContent = new Date().toLocaleDateString("en-GB", {
+const now = new Date();
+const hour = now.getHours();
+const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+document.getElementById("greeting").textContent = `${greeting} 👋`;
+document.getElementById("today").textContent = now.toLocaleDateString("en-GB", {
   weekday: "long",
   day: "numeric",
   month: "long",
+  year: "numeric",
 });
 render();
